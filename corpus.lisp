@@ -96,13 +96,17 @@
 	       (when (>= cnt freq-border)
 		 (let* ((w (subseq text cur (+ cur prev-len)))
 			(env (setf (gethash w envs) (gethash w envs (make-env w)))))
+		   ;; TODO: wが空白文字などを含んでいる場合
+		   (unless (some (lambda (c)
+				   (case c ((#\Newline #\Return #\Space #\　 #\。 #\、) t)))
+				 w)
 		   (dolist (i (cons cur buf))
 		     (let ((lft (get-rs text i))
 			   (rgt (get-s  text (+ i prev-len))))
 		       (when (plusp (length lft))
 			 (incf (gethash lft (env-left env) 0)))
 		       (when (plusp (length rgt))
-			 (incf (gethash rgt (env-right env) 0)))))))
+			 (incf (gethash rgt (env-right env) 0))))))))
 
 	       (when (or (<= len 1)
 			 (> len prev-len))
@@ -112,6 +116,12 @@
 	(incf cnt)
 	(push cur buf)
 	(setf prev-len len)))
+    (maphash (lambda (k v)
+	       (with-slots (left right) v
+	         (when (and (zerop (hash-table-count left))
+			    (zerop (hash-table-count right)))
+		   (remhash k envs))))
+	     envs)
     envs))
      
 #|
