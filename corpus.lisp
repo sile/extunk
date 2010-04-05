@@ -152,3 +152,32 @@ puts open(ARGV[0]).read.gsub(/《.*?》|※?［＃.*?］|｜/,'')
 		     (car right) (cdr right)))
 	   lefts rights))
 	(terpri out)))))
+
+
+#|
+(define-symbol-macro l (asdf:load-system :extunk))
+
+(extunk.corpus:init "/var/igo/dic/ipa/")
+
+(with-open-file (out "/tmp/rlt.1" :direction :output :if-exists :supersede)
+  (extunk.corpus:generate "/tmp/text/" out))
+
+(igo:parse "すももももももabcのうち" extunk.corpus::*tagger*)
+
+(extunk.corpus:pos-env "/tmp/text/")
+
+(extunk.corpus::write-envs
+ (extunk.corpus:pos-env "/tmp/text/")
+ "/tmp/pos.env")
+
+(handler-case
+ (extunk.corpus:word-env "/tmp/text/kokoro.txt")
+ (error (c)
+   (type-of c)))
+
+(setq *print-pprint-dispatch* (copy-pprint-dispatch nil))
+
+(extunk.corpus::write-envs
+ (extunk.corpus:word-env "/tmp/text/kokoro.txt")
+ "/tmp/word.env")
+|#
