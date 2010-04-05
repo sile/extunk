@@ -16,7 +16,7 @@
       (intern (subseq feature 0 (position #\, feature)) :keyword))))
 
 (defun trim (s)
-  (string-trim #.(format nil " 　~C~C" #\Tab #\Return) s))
+  (string-trim #.(format nil " 　~C~C" #\Tab #\Return #\Newline) s))
 
 (defun init (dic-dir)
   (setf *tagger* (igo:load-tagger dic-dir #'ipadic-corpus-parser)
@@ -79,29 +79,8 @@
 	    (when (plusp (length rgt-w))
 	      (incf (gethash rgt-w (env-right env) 0)))))))
     envs))
-#|
-(defun pos-env (corpus-file)
-  (let ((envs '())
-	(prev nil))
-    (common-utils:each-file-line (l corpus-file)
-      (if (zerop (length l))
-	  (setf prev nil)
-	(destructuring-bind (surface pos) 
-			    (common-utils:split-by-chars #.(princ-to-string #\Tab) l)
-	  (let ((pos (intern pos :keyword)))
-	    (unless (find pos envs :key #'env-name)
-	      (push (make-env pos) envs))
-	    (when prev
-	      (let ((cur-env (find pos envs           :key #'env-name))
-		    (prv-env (find (second prev) envs :key #'env-name)))
-		(incf (gethash (first prev) (env-left cur-env) 0))
-		(incf (gethash surface (env-right prv-env) 0))))
-	    (setf prev `(,surface ,pos))))))
-    envs))
-|#
+
 (defun word-env (text-file &optional (freq-border 10))
-  (declare (ignorable text-file freq-border))
-  #|
   (let* ((envs (make-hash-table :test #'equal))
 	 (text (common-utils:read-file text-file))
 	 (prev-len 0)
@@ -111,25 +90,29 @@
     (setf indices (sort indices (lambda (i j) (string> text text :start1 i :start2 j))))
 
     (loop FOR (cur next) ON indices DO
-      (let ((len (mismatch text text :start1 cur :start2 (or next 0))))
-	(cond ((= len prev-len))
-	      ((< len prev-len)
+      (let ((len (- (mismatch text text :start1 cur :start2 (or next 0)#|XXX|#) cur)))
+	(cond ((and (plusp len) (= len prev-len)))
+	      (t
 	       (when (>= cnt freq-border)
-		 (dolist (i (cons cur buf))
-		   
-		 ))
-	      (t 
-	       (when (>= cnt freq-border)
-		 )
-	       (setf buf '())
-	       (setf cnt 0)))
-	
+		 (let* ((w (subseq text cur (+ cur prev-len)))
+			(env (setf (gethash w envs) (gethash w envs (make-env w)))))
+		   (dolist (i (cons cur buf))
+		     (let ((lft (get-rs text i))
+			   (rgt (get-s  text (+ i prev-len))))
+		       (when (plusp (length lft))
+			 (incf (gethash lft (env-left env) 0)))
+		       (when (plusp (length rgt))
+			 (incf (gethash rgt (env-right env) 0)))))))
+
+	       (when (or (<= len 1)
+			 (> len prev-len))
+		 (setf buf '())
+		 (setf cnt 0))))
+
 	(incf cnt)
 	(push cur buf)
-	(setf prev-len len)))))
-  |#
-  :done)
-    
+	(setf prev-len len)))
+    envs))
      
 #|
 puts open(ARGV[0]).read.gsub(/《.*?》|※?［＃.*?］|｜/,'')
@@ -142,6 +125,9 @@ puts open(ARGV[0]).read.gsub(/《.*?》|※?［＃.*?］|｜/,'')
   acc)
 
 (defun write-envs (envs file)
+  (when (typep envs 'hash-table)
+    (setf envs (mapcar #'cdr (hash2list envs))))
+
   (with-open-file (out file :direction :output :if-exists :supersede)
     (dolist (env envs :done)
       (with-slots (name left right) env

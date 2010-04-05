@@ -6,7 +6,7 @@
   :author "Takeru Ohta" 
   :description "A unknown word extraction module"
 
-  :depends-on '(:common-utils)
+  :depends-on (:common-utils :igo)
   :serial t
   :components ((:file "package")
                (:file "corpus")))
