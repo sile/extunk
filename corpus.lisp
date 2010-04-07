@@ -1,5 +1,5 @@
 (defpackage extunk.corpus
-  (:use :common-lisp)
+  (:use :common-lisp :extunk.environment)
   (:export init
 	   pos-env
 	   word-env
@@ -29,12 +29,6 @@
         (format output-stream "~A~C~A~%" surface #\Tab part-of-speech))
       (terpri output-stream)))
   :done)
-
-(defstruct (env (:constructor make-env (name &aux (left (make-hash-table :test #'equal))
-					          (right(make-hash-table :test #'equal)))))
-  name
-  left
-  right)
 
 (defun char-kana-p (ch)
   (char<= #\ぁ ch #\HIRAGANA_LETTER_SMALL_KE))
@@ -68,10 +62,10 @@
     (dolist (file (directory (merge-pathnames #P"*.txt" corpus-dir)))
       (common-utils:each-file-line (l file)
         (loop FOR (surface pos start) IN (igo:parse (trim l) *tagger*) DO
-          (unless (find pos envs :key #'env-name)
+          (unless (find pos envs :key #'env-subject)
 	    (push (make-env pos) envs))
 
-	  (let ((env (find pos envs :key #'env-name))
+	  (let ((env (find pos envs :key #'env-subject))
 		(lft-w (get-rs l start))
 		(rgt-w (get-s l (+ start (length surface)))))
 	    (when (plusp (length lft-w))
@@ -140,8 +134,8 @@ puts open(ARGV[0]).read.gsub(/《.*?》|※?［＃.*?］|｜/,'')
 
   (with-open-file (out file :direction :output :if-exists :supersede)
     (dolist (env envs :done)
-      (with-slots (name left right) env
-        (format out "===== ~A =====~%" name)
+      (with-slots (subject left right) env
+        (format out "===== ~A =====~%" subject)
 	(let ((lefts  (sort (hash2list left) #'> :key #'cdr))
 	      (rights (sort (hash2list right) #'> :key #'cdr)))
 

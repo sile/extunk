@@ -2,6 +2,9 @@
   (:use :common-lisp)
   (:export env
 	   make-env
+	   left
+	   right
+	   subject
 	   env-left
 	   env-right
 	   env-subject))

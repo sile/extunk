@@ -9,6 +9,6 @@
   :depends-on (:common-utils :igo)
   :serial t
   :components ((:file "package")
-               (:file "corpus")
 	       (:file "environment")
+               (:file "corpus")
 	       (:file "word-env")))
