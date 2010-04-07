@@ -40,51 +40,43 @@
 	(when (plusp (length rlt))
 	  rlt)))))
 
-(defun add-to-env (text env-set max-len list min-len low-freq-border &aux (head (car list)))
-  (when (or (< (length list) low-freq-border)
-	    (<= max-len 1))
+(defvar *freq-border* 10)
+(defvar *min-length* 2)
+
+(defun add-to-env (env-set text from-len to-len indices &aux (head (car indices)))
+  (when (< (length indices) *freq-border*)
     (return-from add-to-env))
-
-  #+dp
-  (progn 
-  (format t "==========~%")
-  (format t "~D - ~D, count: ~D~%" min-len max-len (length list))
-  (dolist (cur list)
-    (format t "~A@ @~A~%" 
-	  (subseq text (max (- cur 10) 0) cur)
-	  (subseq text cur (min (+ cur 10) (length text))))))
-	  
-
-  (loop FOR len  FROM min-len TO max-len 
+  
+  (loop FOR len FROM (max *min-length* from-len) TO to-len
 	FOR word = (subseq text head (+ head len))
-    WHEN
-    (and (> len 1)
-	 (not (some #'char-invalid-p word)))
-    DO
-    (let ((env (setf (gethash word env-set) (gethash word env-set (make-env word)))))
-      (dolist (index list)
-	(a.when (get-left-word text index)
-	  (incf (gethash it (env-left env)  0)))
-	(a.when (get-right-word text (+ index len))
-	  (incf (gethash it (env-right env) 0)))))))
+    WHILE 
+      (not (some #'char-invalid-p word))
 
-(defun calc-env (text &key (freq-border 10) (env-set (make-hash-table :test #'equal)))
+    DO
+      (let ((env (if #1=(gethash word env-set) #1# (setf #1# (make-env word)))))
+	(dolist (index indices)
+	  (a.when (get-left-word text index)
+	    (incf (gethash it (env-left env)  0)))
+	  (a.when (get-right-word text (+ index len))
+	    (incf (gethash it (env-right env) 0)))))))
+
+(defun calc-env (text &optional (env-set (make-hash-table :test #'equal)))
   (let ((indices (sort (loop FOR i FROM 0 BELOW (length text) COLLECT i)
 		       (lambda (i j) (string> text text :start1 i :start2 j)))))
+
     (labels ((self (head-indices indices base-len prev-len)
-               (if (or (endp indices) (<= prev-len base-len))
-		   (progn (add-to-env text env-set prev-len (ldiff head-indices indices) base-len freq-border)
-			  (values indices prev-len))
+               (if (<= prev-len base-len)
+		   (values indices prev-len)
 		 (destructuring-bind (1st &rest rest &aux (2nd (car rest))) indices
 		   (let ((len (if 2nd (overlap-length text 1st 2nd) 0)))
-		     (cond ((> len prev-len)
-			    (multiple-value-bind (rest prev-len) (self indices (cdr indices) prev-len len)
-			      (self head-indices rest base-len prev-len)))
-			   ((< len prev-len)
-			    (add-to-env text env-set prev-len (ldiff head-indices indices) len freq-border)
-			    (self head-indices rest base-len len))
-			   (t 
-			    (self head-indices rest base-len len)))))))
+		     (when (> len prev-len)
+		       (setf (values rest len) (self indices rest prev-len len)))
+
+		     (when (< len prev-len)
+		       (add-to-env env-set text (1+ (max base-len len)) prev-len (ldiff head-indices rest)))
+		     
+		     (self head-indices rest base-len len)))))
+	     
 	     (toplevel (indices)
 	       (destructuring-bind (1st &rest rest &aux (2nd (car rest))) indices
 	         (let ((len (if 2nd (overlap-length text 1st 2nd) 0)))
