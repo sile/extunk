@@ -2,7 +2,7 @@
   (:use :common-lisp :extunk.environment)
   (:import-from :common-utils read-file nlet a.when)
   (:nicknames wenv)
-  (:export calc-env))
+  (:export calc-env)) ;; => calc
 (in-package :extunk.word-env)
 
 ;; NOTE: In our usage, (mismatch ...) => always fixnum
@@ -13,6 +13,7 @@
 (defun char-invalid-p (ch)
   (case ch ((#\Space #\Return #\Newline #\Tab #\。 #\、 #\　) t)))
 
+;; defvarを使って調整可能に
 (defun char-kana-p (ch)
   (char<= #\ぁ ch #\HIRAGANA_LETTER_SMALL_KE))
 
@@ -40,17 +41,18 @@
 	(when (plusp (length rlt))
 	  rlt)))))
 
-(defvar *freq-border* 10)
-(defvar *min-length* 2)
+(defparameter *freq-border* 10)
+(defparameter *valid-fn* (lambda (w) (not (some #'char-invalid-p w))))
+(defconstant +WORD-MIN-LENGTH+ 2)
 
 (defun add-to-env (env-set text from-len to-len indices &aux (head (car indices)))
   (when (< (length indices) *freq-border*)
     (return-from add-to-env))
   
-  (loop FOR len FROM (max *min-length* from-len) TO to-len
+  (loop FOR len FROM (max from-len +WORD-MIN-LENGTH+) TO to-len
 	FOR word = (subseq text head (+ head len))
-    WHILE 
-      (not (some #'char-invalid-p word))
+    WHEN
+      (funcall *valid-fn* word)
 
     DO
       (let ((env (if #1=(gethash word env-set) #1# (setf #1# (make-env word)))))
@@ -60,6 +62,7 @@
 	  (a.when (get-right-word text (+ index len))
 	    (incf (gethash it (env-right env) 0)))))))
 
+;; まだバグがあるかも...
 (defun calc-env (text &optional (env-set (make-hash-table :test #'equal)))
   (let ((indices (sort (loop FOR i FROM 0 BELOW (length text) COLLECT i)
 		       (lambda (i j) (string> text text :start1 i :start2 j)))))
