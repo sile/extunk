@@ -2,7 +2,8 @@
   (:use :common-lisp :extunk.environment)
   (:import-from :common-utils a.when)
   (:nicknames wenv)
-  (:export calc)) 
+  (:export calc
+	   *freq-border*))
 (in-package :extunk.word-env)
 
 (defconstant +WORD-MIN-LENGTH+ 2)
