@@ -1,47 +1,53 @@
 (defpackage extunk.word-env
   (:use :common-lisp :extunk.environment)
-  (:import-from :common-utils read-file nlet a.when)
+  (:import-from :common-utils a.when)
   (:nicknames wenv)
   (:export calc)) 
 (in-package :extunk.word-env)
 
 (defconstant +WORD-MIN-LENGTH+ 2)
 (defconstant +CONTEXT-STRING-LENGTH-LIMIT+ 5)
+(defvar *freq-border* 10)
 
-;; NOTE: always return a fixnum value
 (defun overlap-length (string start1 start2)
+  (assert (/= start1 start2))
   (- (mismatch string string :start1 start1 :start2 start2) start1))
 
-(defun char-invalid-p (ch) 
-  (case ch ((#\Space #\Return #\Newline #\Tab #\。 #\、 #\　) t)))
+(defun valid-word-char-p (ch)
+  (and (graphic-char-p ch)
+       (not (find ch "。、 　"))))
 
-(defun char-hiragana-p (ch)  
+(defun char-hiragana-p (ch) 
   (char<= #\ぁ ch #\ゖ))
 
-(defun char-punctuation-p (ch)
-  (case ch ((#\。 #\、) t)))
+(defun char-punctuation-p (ch) 
+  (find ch "。、"))
+
+(defun context-range (text start end from-end)
+  '#1=(position-if-not #'char-hiragana-p text :start start :end end :from-end from-end)
+  (if from-end
+      (values (1+ (or #1# (1- start))) end)
+    (values start (or #1# end))))
 
 (defun right-context (text pos)
   (when (< pos (length text))
     (if (char-punctuation-p (char text pos))
 	(subseq text pos (1+ pos))
-      (let* ((end-limit (min (length text) (+ pos +CONTEXT-STRING-LENGTH-LIMIT+)))
-	     (end (or (position-if-not #'char-hiragana-p text :start pos :end end-limit) end-limit)))
-	(when (> end pos)
-	  (subseq text pos end))))))
+      (let ((start pos)
+	    (end-limit (min (length text) (+ pos +CONTEXT-STRING-LENGTH-LIMIT+))))
+	(multiple-value-bind (start end) (context-range text start end-limit nil)
+	  (when (< start end)
+	    (subseq text start end)))))))
 
 (defun left-context (text pos)
   (when (plusp pos)
     (if (char-punctuation-p (char text (1- pos)))
 	(subseq text (1- pos) pos)
-      (do ((i pos (1- i))
-	   (border (max 0 (- pos +CONTEXT-STRING-LENGTH-LIMIT+))))
-	  ((or (= i border)
-	       (not (char-hiragana-p (char text (1- i)))))
-	   (when (< i pos)
-	     (subseq text i pos)))))))
-
-(defparameter *freq-border* 10)
+      (let ((start-limit (max 0 (- pos +CONTEXT-STRING-LENGTH-LIMIT+)))
+	    (end pos))
+        (multiple-value-bind (start end) (context-range text start-limit end t)
+          (when (< start end)
+	    (subseq text start end)))))))
 
 (defun add-to-env (env-set text from-len to-len indices &aux (head (car indices)))
   (when (< (length indices) *freq-border*)
@@ -49,16 +55,15 @@
   
   (loop FOR len FROM (max from-len +WORD-MIN-LENGTH+) TO to-len
 	FOR word = (subseq text head (+ head len))
+    WHEN (every #'valid-word-char-p word)
     DO
-      (unless (some #'char-invalid-p word) 
-	(let ((env (if #1=(gethash word env-set) #1# (setf #1# (make-env word)))))
-	  (dolist (index indices)
-	    (a.when (left-context text index)
-	      (incf (gethash it (env-left env)  0)))
-	    (a.when (right-context text (+ index len))
-	      (incf (gethash it (env-right env) 0))))))))
+    (let ((env (if #1=(gethash word env-set) #1# (setf #1# (make-env word)))))
+      (dolist (index indices)
+	(a.when (left-context text index)
+	  (incf (gethash it (env-left env)  0)))
+	(a.when (right-context text (+ index len))
+	  (incf (gethash it (env-right env) 0)))))))
 
-;; まだバグがあるかも...
 (defun calc (text &optional (env-set (make-hash-table :test #'equal)))
   (let ((indices (sort (loop FOR i FROM 0 BELOW (length text) COLLECT i)
 		       (lambda (i j) (string> text text :start1 i :start2 j)))))
