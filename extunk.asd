@@ -10,5 +10,6 @@
   :serial t
   :components ((:file "package")
 	       (:file "environment")
-               (:file "corpus")
-	       (:file "word-env")))
+	       (:file "word-env")
+               (:file "pos-env")
+	       ))
