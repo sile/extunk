@@ -1,5 +1,6 @@
 (defpackage extunk.pos-env
   (:use :common-lisp :extunk.environment)
+  (:import-from :common-utils each-file-line a.when)
   (:nicknames penv)
   (:export init
 	   calc))
@@ -19,15 +20,29 @@
 (defun init (dic-dir)
   (setf *tagger* (igo:load-tagger dic-dir #'ipadic-corpus-parser)))
 
+(defun find-env (pos envs)
+  (find pos envs :key #'env-subject))
+
 (defun calc (corpus-dir)
-  (let ((envs (mapcar (lambda (pos) (cons pos (make-env pos))) *target-pos*)))
+  (let ((envs (mapcar #'make-env *target-pos*)))
+    (dolist (file (directory (merge-pathnames #P"*.txt" corpus-dir)))
+      (each-file-line (l file)
+        (loop FOR (surface pos start) IN (igo:parse l *tagger*) 
+	      FOR env = (find-env pos envs)
+          WHEN env
+	  DO 
+            (a.when (left-context l start)
+              (incf (gethash it (env-left env) 0)))
+	    (a.when (right-context l (+ start (length surface)))
+	      (incf (gethash it (env-right env) 0))))))
     envs))
 
 #+ignore
 (defun pos-env (corpus-dir)
   (let ((envs '()))
     (dolist (file (directory (merge-pathnames #P"*.txt" corpus-dir)))
-      (common-utils:each-file-line (l file)
+      (each-file-line (l file)
+        
         (loop FOR (surface pos start) IN (igo:parse (trim l) *tagger*) DO
           (unless (find pos envs :key #'env-subject)
 	    (push (make-env pos) envs))
