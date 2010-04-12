@@ -15,7 +15,7 @@
 
 (defvar *tagger*)
 
-(defvar *target-pos* '(:形容詞 :連体詞 :動詞 :名詞))
+(defvar *target-pos* '(:形容詞 :動詞 :名詞))
 
 (defun init (dic-dir)
   (setf *tagger* (igo:load-tagger dic-dir #'ipadic-corpus-parser)))
@@ -36,23 +36,3 @@
 	    (a.when (right-context l (+ start (length surface)))
 	      (incf (gethash it (env-right env) 0))))))
     envs))
-
-#+ignore
-(defun pos-env (corpus-dir)
-  (let ((envs '()))
-    (dolist (file (directory (merge-pathnames #P"*.txt" corpus-dir)))
-      (each-file-line (l file)
-        
-        (loop FOR (surface pos start) IN (igo:parse (trim l) *tagger*) DO
-          (unless (find pos envs :key #'env-subject)
-	    (push (make-env pos) envs))
-
-	  (let ((env (find pos envs :key #'env-subject))
-		(lft-w (get-rs l start))
-		(rgt-w (get-s l (+ start (length surface)))))
-	    (when (plusp (length lft-w))
-	      (incf (gethash lft-w (env-left env) 0)))
-	    (when (plusp (length rgt-w))
-	      (incf (gethash rgt-w (env-right env) 0)))))))
-    envs))
-
