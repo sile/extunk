@@ -54,4 +54,3 @@
         (multiple-value-bind (start end) (context-range text start-limit end t)
           (when (< start end)
 	    (subseq text start end)))))))
-
